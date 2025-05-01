@@ -3,78 +3,85 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace PvsStudioDemo
+namespace BrokenApp
 {
     class Program
     {
         static void Main(string[] args)
         {
-            // 1. Возможное разыменование null-ссылки (V3042)
-            string str = null;
-            if (str.Length > 0) // <- Ошибка: NullReferenceException
+            var app = new AppService();
+            app.DoWork();
+
+            // Потенциальная утечка: логгирование чувствительных данных
+            Console.WriteLine("User password is: 123456");
+
+            string unusedVariable = "This is never used";
+
+            // Потенциальная уязвимость: считывание файла без валидации пути
+            string path = Console.ReadLine();
+            string content = File.ReadAllText(path);
+            Console.WriteLine(content);
+        }
+    }
+
+    public class AppService
+    {
+        private List<string> _items = new List<string>();
+
+        public void DoWork()
+        {
+            for (int i = 0; i <= 10; i++)
             {
-                Console.WriteLine("String is not empty!");
+                _items.Add("Item " + i);
             }
 
-            // 2. Утечка памяти из-за неправильной подписки на событие (V3119)
-            var publisher = new EventPublisher();
-            for (int i = 0; i < 10; i++)
+            // Потенциальная ошибка: выход за пределы массива
+            Console.WriteLine(_items[15]);
+
+            try
             {
-                var subscriber = new EventSubscriber(publisher);
-                // Подписчик не отписывается, что может привести к утечке
+                DangerousOperation(null);
+            }
+            catch (Exception ex)
+            {
+                // Плохая практика: глушим исключение
             }
 
-            // 3. Деление на ноль (V3064)
-            int a = 10, b = 0;
-            int result = a / b; // <- DivideByZeroException
+            Task.Run(() => LongRunningProcess());
+        }
 
-            // 4. Переполнение буфера (V3106)
-            int[] numbers = new int[5];
-            for (int i = 0; i <= 5; i++) // <- Выход за границы массива
+        private void DangerousOperation(string input)
+        {
+            Console.WriteLine(input.ToUpper()); // возможен NullReferenceException
+        }
+
+        private async Task LongRunningProcess()
+        {
+            // Имитация утечки ресурсов
+            while (true)
             {
-                numbers[i] = i;
-            }
-
-            // 5. Бесполезное условие (V3022)
-            bool condition = true;
-            if (condition == true) // <- Избыточная проверка
-            {
-                Console.WriteLine("Condition is always true!");
-            }
-
-            // 6. Неиспользуемая переменная (V3018)
-            int unusedVar = 42;
-
-            // 7. Опасное сравнение double (V3024)
-            double x = 0.1 + 0.2;
-            if (x == 0.3) // <- Неточное сравнение double
-            {
-                Console.WriteLine("Unexpected comparison result!");
+                Thread.Sleep(1000); // не await, блокировка потока
             }
         }
     }
 
-    class EventPublisher
+    class UselessClass
     {
-        public event EventHandler SomethingHappened;
-
-        public void RaiseEvent()
+        public void DoNothing()
         {
-            SomethingHappened?.Invoke(this, EventArgs.Empty);
+            int a = 5;
+            int b = 10;
+            int result = a * b; // переменная не используется
         }
     }
 
-    class EventSubscriber
+    // Устаревший стиль, неиспользуемый интерфейс
+    interface IUnused
     {
-        public EventSubscriber(EventPublisher publisher)
-        {
-            publisher.SomethingHappened += HandleEvent; // Подписка без отписки
-        }
-
-        private void HandleEvent(object sender, EventArgs e)
-        {
-            Console.WriteLine("Event handled!");
-        }
+        void NotImplemented();
     }
 }
